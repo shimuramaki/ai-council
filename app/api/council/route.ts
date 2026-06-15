@@ -1,36 +1,44 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { chatCompletion } from "@/lib/openrouter";
-import { MODELS, SUMMARIZER_MODEL, type CouncilModelKey } from "@/lib/models";
-import { COUNCIL_SYSTEM_PROMPT } from "@/lib/prompts";
+import { MODELS, SUMMARIZER_MODEL, MODEL_KEYS, type CouncilModelKey } from "@/lib/models";
+import { COUNCIL_SYSTEM_PROMPT, buildRound2Messages, buildSummaryPrompt } from "@/lib/prompts";
 import { saveCouncilHistory, type ModelResult } from "@/lib/history";
+import type { CouncilStreamEvent } from "@/lib/types";
 
-function buildSummaryPrompt(
+async function runRound1(question: string): Promise<Record<CouncilModelKey, ModelResult>> {
+  const messages = [
+    { role: "system" as const, content: COUNCIL_SYSTEM_PROMPT },
+    { role: "user" as const, content: question },
+  ];
+
+  const results = await Promise.all(
+    MODEL_KEYS.map((key) => chatCompletion(MODELS[key].id, messages))
+  );
+
+  return Object.fromEntries(MODEL_KEYS.map((key, i) => [key, results[i]])) as Record<
+    CouncilModelKey,
+    ModelResult
+  >;
+}
+
+async function runRound2(
   question: string,
-  responses: Record<CouncilModelKey, ModelResult>
-): string {
-  const format = (key: CouncilModelKey) => {
-    const r = responses[key];
-    return "error" in r ? `[エラー] ${r.error}` : r.text;
-  };
+  round1Responses: Record<CouncilModelKey, ModelResult>
+): Promise<Record<CouncilModelKey, ModelResult>> {
+  const results = await Promise.all(
+    MODEL_KEYS.map((key) =>
+      chatCompletion(MODELS[key].id, buildRound2Messages(question, key, round1Responses))
+    )
+  );
 
-  return `以下は同じ質問に対する3つのAIモデルの回答です。
+  return Object.fromEntries(MODEL_KEYS.map((key, i) => [key, results[i]])) as Record<
+    CouncilModelKey,
+    ModelResult
+  >;
+}
 
-## 質問
-${question}
-
-## ChatGPT (${MODELS.gpt.id}) の回答
-${format("gpt")}
-
-## Gemini (${MODELS.gemini.id}) の回答
-${format("gemini")}
-
-## Claude (${MODELS.claude.id}) の回答
-${format("claude")}
-
----
-
-上記3つの意見を踏まえ、共通点・相違点を整理し、実用的な結論をまとめてください。
-日本語で回答してください。`;
+function encodeEvent(event: CouncilStreamEvent): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify(event) + "\n");
 }
 
 export async function POST(req: NextRequest) {
@@ -38,38 +46,68 @@ export async function POST(req: NextRequest) {
     const { question } = await req.json();
 
     if (!question?.trim()) {
-      return NextResponse.json({ error: "質問を入力してください" }, { status: 400 });
+      return new Response(JSON.stringify({ error: "質問を入力してください" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     const trimmed = question.trim();
-    const userMessage = { role: "user" as const, content: trimmed };
-    const councilMessages = [
-      { role: "system" as const, content: COUNCIL_SYSTEM_PROMPT },
-      userMessage,
-    ];
 
-    const [gpt, gemini, claude] = await Promise.all([
-      chatCompletion(MODELS.gpt.id, councilMessages),
-      chatCompletion(MODELS.gemini.id, councilMessages),
-      chatCompletion(MODELS.claude.id, councilMessages),
-    ]);
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (event: CouncilStreamEvent) => {
+          controller.enqueue(encodeEvent(event));
+        };
 
-    const responses = { gpt, gemini, claude };
+        try {
+          send({ phase: "round1", status: "processing" });
+          const round1Responses = await runRound1(trimmed);
+          send({ phase: "round1", status: "complete", responses: round1Responses });
 
-    const summary = await chatCompletion(SUMMARIZER_MODEL, [
-      { role: "system", content: COUNCIL_SYSTEM_PROMPT },
-      { role: "user", content: buildSummaryPrompt(trimmed, responses) },
-    ]);
+          send({ phase: "round2", status: "processing" });
+          const round2Responses = await runRound2(trimmed, round1Responses);
+          send({ phase: "round2", status: "complete", responses: round2Responses });
 
-    const historyId = await saveCouncilHistory(trimmed, responses, summary);
+          send({ phase: "summary", status: "processing" });
+          const summary = await chatCompletion(SUMMARIZER_MODEL, [
+            { role: "system", content: COUNCIL_SYSTEM_PROMPT },
+            { role: "user", content: buildSummaryPrompt(trimmed, round2Responses) },
+          ]);
 
-    return NextResponse.json({
-      question: trimmed,
-      responses,
-      summary,
-      historyId,
+          const historyId = await saveCouncilHistory(
+            trimmed,
+            { roundNumber: 1, responses: round1Responses },
+            { roundNumber: 2, responses: round2Responses },
+            summary
+          );
+
+          send({
+            phase: "complete",
+            question: trimmed,
+            round1: { roundNumber: 1, responses: round1Responses },
+            round2: { roundNumber: 2, responses: round2Responses },
+            summary,
+            historyId: historyId ?? undefined,
+          });
+        } catch (e) {
+          send({ phase: "error", error: String(e) });
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "application/x-ndjson",
+        "Cache-Control": "no-cache",
+      },
     });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return new Response(JSON.stringify({ error: String(e) }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }

@@ -21,7 +21,7 @@ export function AppHeader({ active = "home" }: Props) {
           </Link>
         </nav>
       </div>
-      <p className="tagline">3つのAIに同時に聞き、Claudeが結論をまとめる</p>
+      <p className="tagline">3つのAIが2ラウンドで審議し、Claudeが最終結論をまとめる</p>
     </header>
   );
 }

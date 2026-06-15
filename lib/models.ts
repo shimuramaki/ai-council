@@ -19,3 +19,5 @@ export const MODELS = {
 export const SUMMARIZER_MODEL = MODELS.claude.id;
 
 export type CouncilModelKey = keyof typeof MODELS;
+
+export const MODEL_KEYS: CouncilModelKey[] = ["gpt", "gemini", "claude"];

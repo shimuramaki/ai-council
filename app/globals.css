@@ -498,6 +498,83 @@ body {
   color: #6f6f7a;
 }
 
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: rgba(107, 138, 253, 0.1);
+  border: 1px solid rgba(107, 138, 253, 0.3);
+  border-radius: 10px;
+  color: #c4d0ff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6b8afd;
+  animation: pulse 1.2s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+.round-section {
+  margin-bottom: 28px;
+}
+
+.round-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.round-title {
+  margin: 0;
+  font-size: 17px;
+  color: #f4f4f6;
+}
+
+.round-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #1f1f26;
+  color: #6f6f7a;
+}
+
+.round-badge.active {
+  background: rgba(107, 138, 253, 0.2);
+  color: #a8b8ff;
+}
+
+.round-badge.done {
+  background: rgba(74, 222, 128, 0.15);
+  color: #86efac;
+}
+
+.saved-note {
+  font-size: 12px;
+  color: #6f6f7a;
+  text-align: right;
+  margin: 0;
+}
+
 @media (max-width: 900px) {
   .top-row {
     flex-direction: column;

@@ -4,9 +4,17 @@
 create table if not exists public.council_history (
   id uuid primary key default gen_random_uuid(),
   question text not null,
+  -- 旧形式（1ラウンドのみ）との互換用
   response_gpt text,
   response_gemini text,
   response_claude text,
+  -- 2ラウンド対応
+  round1_gpt text,
+  round1_gemini text,
+  round1_claude text,
+  round2_gpt text,
+  round2_gemini text,
+  round2_claude text,
   summary text,
   created_at timestamptz not null default now()
 );

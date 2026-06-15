@@ -1,14 +1,12 @@
-import { MODELS, type CouncilModelKey } from "@/lib/models";
 import type { CouncilResponse } from "@/lib/history";
 import { MarkdownContent } from "@/components/MarkdownContent";
+import { CouncilRoundSection } from "@/components/CouncilRoundSection";
 
-const MODEL_KEYS: CouncilModelKey[] = ["gpt", "gemini", "claude"];
-
-function resultText(r: CouncilResponse["responses"]["gpt"] | CouncilResponse["summary"]): string {
+function resultText(r: CouncilResponse["summary"]): string {
   return "error" in r ? r.error : r.text;
 }
 
-function isError(r: CouncilResponse["responses"]["gpt"] | CouncilResponse["summary"]): boolean {
+function isError(r: CouncilResponse["summary"]): boolean {
   return "error" in r;
 }
 
@@ -24,10 +22,20 @@ export function CouncilResult({ result }: Props) {
         <p>{result.question}</p>
       </section>
 
+      <CouncilRoundSection title="1ラウンド目" round={result.round1} status="done" />
+
+      {result.round2 && (
+        <CouncilRoundSection title="2ラウンド目（再考）" round={result.round2} status="done" />
+      )}
+
       <section className="summary">
         <header className="summary-head">
-          <h2>結論</h2>
-          <span className="model-id">Claude Opus 4.6 が3つの意見を統合</span>
+          <h2>最終結論</h2>
+          <span className="model-id">
+            {result.round2
+              ? "2ラウンド目の回答をもとに Claude が統合"
+              : "Claude Opus 4.6 が3つの意見を統合"}
+          </span>
         </header>
         <div className={"summary-body" + (isError(result.summary) ? " err" : "")}>
           {isError(result.summary) ? (
@@ -36,28 +44,6 @@ export function CouncilResult({ result }: Props) {
             <MarkdownContent content={resultText(result.summary)} />
           )}
         </div>
-      </section>
-
-      <section className="columns">
-        {MODEL_KEYS.map((key) => {
-          const model = MODELS[key];
-          const response = result.responses[key];
-          return (
-            <article key={key} className="column">
-              <header className="col-head">
-                <h2>{model.label}</h2>
-                <span className="model-id">{model.subtitle}</span>
-              </header>
-              <div className={"col-body" + (isError(response) ? " err" : "")}>
-                {isError(response) ? (
-                  resultText(response)
-                ) : (
-                  <MarkdownContent content={resultText(response)} />
-                )}
-              </div>
-            </article>
-          );
-        })}
       </section>
     </>
   );
