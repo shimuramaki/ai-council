@@ -1,27 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { MODELS, type CouncilModelKey } from "@/lib/models";
-import { MarkdownContent } from "@/components/MarkdownContent";
-
-type ModelResult = { text: string } | { error: string };
-
-type CouncilResponse = {
-  question: string;
-  responses: Record<CouncilModelKey, ModelResult>;
-  summary: ModelResult;
-};
-
-const MODEL_KEYS: CouncilModelKey[] = ["gpt", "gemini", "claude"];
-
-function resultText(r: ModelResult | undefined): string {
-  if (!r) return "";
-  return "error" in r ? r.error : r.text;
-}
-
-function isError(r: ModelResult | undefined): boolean {
-  return !!r && "error" in r;
-}
+import { AppHeader } from "@/components/AppHeader";
+import { CouncilResult } from "@/components/CouncilResult";
+import type { CouncilResponse } from "@/lib/history";
 
 export default function Home() {
   const [input, setInput] = useState("");
@@ -59,13 +41,7 @@ export default function Home() {
 
   return (
     <main className="wrap">
-      <header className="top">
-        <div className="brand">
-          <span className="dot" />
-          AI Council
-        </div>
-        <p className="tagline">3つのAIに同時に聞き、Claudeが結論をまとめる</p>
-      </header>
+      <AppHeader active="home" />
 
       <section className="input-section">
         <textarea
@@ -85,54 +61,7 @@ export default function Home() {
 
       {error && <div className="banner error">{error}</div>}
 
-      {result && (
-        <>
-          <section className="question-box">
-            <span className="label">質問</span>
-            <p>{result.question}</p>
-          </section>
-
-          <section className="summary">
-            <header className="summary-head">
-              <h2>結論</h2>
-              <span className="model-id">Claude Opus 4.6 が3つの意見を統合</span>
-            </header>
-            <div className={"summary-body" + (isError(result.summary) ? " err" : "")}>
-              {loading && !result.summary ? (
-                <div className="typing"><span /><span /><span /></div>
-              ) : isError(result.summary) ? (
-                resultText(result.summary)
-              ) : (
-                <MarkdownContent content={resultText(result.summary)} />
-              )}
-            </div>
-          </section>
-
-          <section className="columns">
-            {MODEL_KEYS.map((key) => {
-              const model = MODELS[key];
-              const response = result.responses[key];
-              return (
-                <article key={key} className="column">
-                  <header className="col-head">
-                    <h2>{model.label}</h2>
-                    <span className="model-id">{model.subtitle}</span>
-                  </header>
-                  <div className={"col-body" + (isError(response) ? " err" : "")}>
-                    {loading && !response ? (
-                      <div className="typing"><span /><span /><span /></div>
-                    ) : isError(response) ? (
-                      resultText(response)
-                    ) : (
-                      <MarkdownContent content={resultText(response)} />
-                    )}
-                  </div>
-                </article>
-              );
-            })}
-          </section>
-        </>
-      )}
+      {result && <CouncilResult result={result} />}
 
       {!result && !loading && !error && (
         <section className="empty">

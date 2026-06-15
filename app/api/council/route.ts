@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { chatCompletion } from "@/lib/openrouter";
 import { MODELS, SUMMARIZER_MODEL, type CouncilModelKey } from "@/lib/models";
 import { COUNCIL_SYSTEM_PROMPT } from "@/lib/prompts";
-
-type ModelResult = { text: string } | { error: string };
+import { saveCouncilHistory, type ModelResult } from "@/lib/history";
 
 function buildSummaryPrompt(
   question: string,
@@ -62,7 +61,14 @@ export async function POST(req: NextRequest) {
       { role: "user", content: buildSummaryPrompt(trimmed, responses) },
     ]);
 
-    return NextResponse.json({ question: trimmed, responses, summary });
+    const historyId = await saveCouncilHistory(trimmed, responses, summary);
+
+    return NextResponse.json({
+      question: trimmed,
+      responses,
+      summary,
+      historyId,
+    });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
